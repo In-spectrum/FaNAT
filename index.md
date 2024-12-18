@@ -18,7 +18,8 @@
   * захвата, трансляции и просмотра рабочего стола; 
 * настройка ssh-туннеля и доступ к устройству по ssh-протоколу;
  
-**Application was tested:** Windows 10, Ubuntu 20.04.6;
+**Application was tested** 
+* Windows 10, Ubuntu 20.04.6;
 
 **Планируется**
 * развертывание на АРМ (Raspberry Pi, NVIDIA Jetson TX2), macOS, Android (client-lite);
