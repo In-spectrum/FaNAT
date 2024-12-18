@@ -22,7 +22,7 @@
 * Windows 10, Ubuntu 20.04.6;
 
 **Планируется**
-* развертывание на АРМ (Raspberry Pi, NVIDIA Jetson TX2), macOS, Android (client-lite);
+* развертывание на АРМ (Raspberry Pi, NVIDIA Jetson TX2), macOS, Android ( [client-lite](#fanat-client-lite) );
 * захват рабочего стола в Linux, где используется Wayland; 
 
 ## Table of contents
