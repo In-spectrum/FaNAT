@@ -1,8 +1,5 @@
 #include "control.h"
 
-#ifdef Q_OS_ANDROID
-
-#else
 #ifdef Q_OS_WIN
 #include <windows.h>
 #else
@@ -12,33 +9,58 @@
 #include <X11/extensions/XTest.h>
 #endif
 #endif
-#endif
 
 
 
 
-Control::Control(QQmlApplicationEngine *_pApp)
+Control::Control(QStringList _sDataIn)
 {
-    m_pApp = _pApp;
-    m_obMain = m_obVideo = m_obMenu = nullptr;
+    //qDebug() << "Control::Control 0:" << _sDataIn;
+
+    //fGenerateLogPass();
+
+    fPropertySet( _sDataIn );
 
 
-    fKeyEventClear();
+    if( SettingsApp::slDevServer() )
+        slServerUpdateData(  slServerIP()
+                            , "0"
+                            , "0"
+                            , "0"
+                            , SettingsApp::slKeyDevServer()
+                            , slServerPassword()
+                           );
+    else
+        slServerUpdateData(  slServerIP()
+                           , QString::number( slPortTCP() )
+                           , "0"
+                           , "0"
+                           , SettingsApp::slKeyDevServer()
+                           , slServerPassword()
+                           );
 
-    fGenerateLogPass();
+
+    QTimer *timer = new QTimer(this);
+    connect(timer, &QTimer::timeout, this, &Control::slotTimer);
+    timer->setInterval(1000);
+    timer->start();
 
 }
 
 Control::~Control()
 {
-    qDebug() << "Control::~Control 0: ";
+    //qDebug() << "Control::~Control 0: ";
+
+    slotDestruction();
+
+    //QThread::sleep(2);
+
+    //qDebug() << "Control::~Control 10: ";
 }
 
 void Control::slotDestruction()
 {
-    m_obMain = nullptr;
-    m_obVideo = nullptr;
-    m_obMenu = nullptr;
+    qDebug() << "Control::slotDestruction 0: ";
 
     fClientDisconnect();
 
@@ -52,18 +74,9 @@ void Control::slotDestruction()
         a_iStop++;
     }
 
-    QThread::msleep(1000);
+    QThread::msleep(200);
 
     qDebug() << "Control::slotDestruction 200: " << a_iStop  << m_iThClientSoc;
-}
-
-void Control::slotFindCheldren()
-{
-    m_obMain = m_pApp->rootObjects().first();
-    m_obVideo = m_obMain->findChild<QObject*>("obVideo");
-    m_obMenu = m_obMain->findChild<QObject*>("obMenu");
-
-    slConnectToServer(StaticData::m_sLogin, StaticData::m_sPassword);
 }
 
 void Control::slotTimer()
@@ -72,76 +85,8 @@ void Control::slotTimer()
 
     fConnectClientStatus();
 
-    if(m_iTimeForBuffer < 10)
-        m_iTimeForBuffer++;
-
-    if(m_obVideo)
-    {
-        QMetaObject::invokeMethod(m_obVideo, "fTimer");
-    }
-
-    fNewStream();
 }
 
-
-void Control::fStreamReaderDelete(QQmlEngine *_engineMain)
-{
-    //qDebug() << "fStreamReaderDelete 0: ";
-
-
-    StaticData::m_iTimeForStream = 10;
-    m_iNewStream = 5;
-    m_bErrStream = false;
-
-
-    //qDebug() << "fStreamReaderDelete 10: ";
-}
-
-QString Control::fStreamReadGST()
-{
-    //gst-pipeline: rtmpsrc location='rtmp://localhost/111/ live=1' ! queue ! decodebin ! videoconvert ! qtvideosink
-    QString rtpCamStr;
-
-    //if( slStreamRTSP() )
-    {
-        rtpCamStr = "";
-        rtpCamStr.append(QLatin1String("rtsp://"));
-        rtpCamStr.append( slServerIP() );
-        rtpCamStr.append(QLatin1String(":"));
-        rtpCamStr.append( QString::number( slPortRTSP() ) );
-        rtpCamStr.append(QLatin1String("/live/"));
-        rtpCamStr.append(m_sNewStreamUrl);
-    }
-    // else
-    // {
-    //     #ifdef Q_OS_WIN
-
-    //             rtpCamStr = "";
-    //             rtpCamStr.append(QLatin1String("rtsp://"));
-    //             rtpCamStr.append( slServerIP() );
-    //             rtpCamStr.append(QLatin1String(":"));
-    //             rtpCamStr.append( QString::number( slPortRTSP() ) );
-    //             rtpCamStr.append(QLatin1String("/live/"));
-    //             rtpCamStr.append(m_sNewStreamUrl);
-    //     #else
-    //             rtpCamStr = "";
-    //             rtpCamStr.append(QLatin1String("rtmp://"));
-    //             rtpCamStr.append( slServerIP() );
-    //             rtpCamStr.append(QLatin1String(":"));
-    //             rtpCamStr.append( QString::number( slPortRTMP() ) );
-    //             rtpCamStr.append(QLatin1String("/live/"));
-    //             rtpCamStr.append(m_sNewStreamUrl);
-    //             //rtpCamStr.append(QLatin1String("/"));
-    //             //rtpCamStr.append(QLatin1String(" live=1"));
-    //     #endif
-    // }
-
-    rtpCamStr = rtpCamStr.replace("localhost", "127.0.0.1");
-
-    //qDebug() << "fStreamReadGST 10: " << rtpCamStr;
-
-    return rtpCamStr;
-}
 
 void Control::fConnectToServer(QString _sIp, int _iPort, QString _sLogin, QString _sPassword)
 {
@@ -159,8 +104,6 @@ void Control::fConnectToServer(QString _sIp, int _iPort, QString _sLogin, QStrin
     connect(a_thread, SIGNAL(finished()), this, SLOT(slThClientFin()), Qt::DirectConnection);
     connect(this, SIGNAL(sgClientStop()), a_thread, SLOT( slStop()));
     connect(this, &Control::sgSendMassang, a_thread, &NewClient::slAddDataWrite, Qt::QueuedConnection);
-    connect(this, &Control::sgSendMouseEvent, a_thread, &NewClient::slSendMouseEvent);
-    connect(this, &Control::sgSendKeyEvent, a_thread, &NewClient::slSendKeyEvent);
     connect(this, &Control::sgTimer, a_thread, &NewClient::slTimer);
     connect(this, &Control::sgControl, a_thread, &NewClient::slControl, Qt::QueuedConnection);
 
@@ -174,8 +117,6 @@ void Control::fConnectToServer(QString _sIp, int _iPort, QString _sLogin, QStrin
 
 void Control::slConnectToServer(QString _sLogin, QString _sPassword)
 {
-    fStreamReadClear();
-
     if(_sLogin.length() == 0 || _sPassword.length() == 0)
         return;
 
@@ -186,94 +127,7 @@ void Control::slConnectToServer(QString _sLogin, QString _sPassword)
 
     //fConnectToServer("192.168.1.189", StaticData::m_sPortTCP, StaticData::m_sLogin, StaticData::m_sPassword);
     //fConnectToServer("127.0.0.1", StaticData::m_sPortTCP, StaticData::m_sLogin, StaticData::m_sPassword);
-    fConnectToServer(slServerIP(), slPortTCP(), StaticData::m_sLogin, StaticData::m_sPassword);
-}
-
-void Control::slDisConnectDesktop(int _bVar)
-{
-
-    m_bDisconnect = _bVar > 0 ? true : false;
-
-    if(_bVar == 1)
-    {
-        fStreamReadClear();
-
-        m_bStream = false;
-
-        if(m_obVideo && !m_bStream)
-        {
-            QMetaObject::invokeMethod(m_obVideo, "fVideoStartStop"
-                                      , Q_ARG(QVariant, "")
-                                      , Q_ARG(QVariant, 0) );
-        }
-
-        emit sgSendMassang( MyProtocol::fConnectToDesktop("0", "0", StaticData::m_sDeskId, m_bStream) );
-
-
-
-        StaticData::m_sDeskLogin = "";
-        StaticData::m_sDeskPassword = "";
-        StaticData::m_sDeskId = "";
-
-        fConnectClientStatus();
-        fStatusConnectToDesktop(false);
-    }
-    else
-    {
-        if(_bVar == 2)
-        {
-            fStreamReadClear();
-
-            m_bStream = false;
-
-            if(m_obVideo && !m_bStream)
-            {
-                QMetaObject::invokeMethod(m_obVideo, "fVideoStartStop"
-                                          , Q_ARG(QVariant, "")
-                                          , Q_ARG(QVariant, 0) );
-            }
-
-            emit sgSendMassang( MyProtocol::fConnectToDesktop("0", "0", "0", m_bStream) );
-            StaticData::m_sDeskId = "";
-
-            fConnectClientStatus();
-            fStatusConnectToDesktop(false);
-        }
-    }
-
-}
-
-void Control::slConnectToDesktop(bool _bStream, QString _sLogin, QString _sPassword, QString _sId)
-{
-    //qDebug() << "Control::slConnectToDesktop 0: " << _bStream;
-
-    m_bStream = _bStream;
-
-    if(m_obVideo && !m_bStream)
-    {
-        QMetaObject::invokeMethod(m_obVideo, "fVideoStartStop"
-                                  , Q_ARG(QVariant, "")
-                                  , Q_ARG(QVariant, 0) );
-    }
-
-    fStreamReadClear();
-
-
-    if(_sLogin.length() > 0
-        && _sPassword.length() > 0
-        && _sId.length() > 0 )
-    {
-
-        fStatusConnectToDesktop(false);
-
-        StaticData::m_sDeskLogin = _sLogin;
-        StaticData::m_sDeskPassword = _sPassword;
-        StaticData::m_sDeskId = _sId;
-
-        emit sgSendMassang( MyProtocol::fConnectToDesktop(StaticData::m_sDeskLogin, StaticData::m_sDeskPassword, StaticData::m_sDeskId, m_bStream) );
-    }
-
-
+    fConnectToServer(slServerIP(), slPortTCP(), slLogin(), slPassword() );
 }
 
 void Control::slClientControl(QString _sId, int _iVar, QString _sData)
@@ -291,90 +145,20 @@ void Control::slClientControl(QString _sId, int _iVar, QString _sData)
         break;
     case 1:
     {
-        m_iTimeStreamWrite = 0;
-
-        emit sgSendMassang( MyProtocol::fVideoQualityCurent( StaticData::m_sDeskId, StaticData::m_sMyId
-                                                           , StaticData::_iCurSizeFr,  StaticData::_iCurFPS,  StaticData::_iCurEnvoderV
-                                                           , StaticData::_iCurEncSpeed,  StaticData::_iCurBetrate, StaticData::_iCurLatencyZ
-                                                           , StaticData::_iCurStreamRTSP, StaticData::_iCurSoundCapture)
-                           );
-
-        if(_sData != m_sCurrentWriteUrl)
-        {
-            //qDebug() << "Control::slClientControl 1.1: " << m_sCurrentWriteUrl << _sData;
-
-        }
-
-        m_sCurrentWriteUrl = _sData;
-
         //qDebug() << "Control::slClientControl 1.2: " << _sId << _iVar << _sData;
 
     }
     break;
     case 2:
     {
-        if(m_sNewStreamUrl != _sData)
-        {
-            m_iNewStream = 0;
 
-            //qDebug() << "Control::slClientControl 2.1: " << m_sNewStreamUrl << _sData;
-        }
-
-        m_sNewStreamUrl = _sData;
-        m_bErrStream = false;
-
-        if(_sData == StaticData::m_sWithoutStream)
-        {
-            //qDebug() << "Control::slClientControl 2.2: " << _sId << _iVar << _sData;
-
-            slDisConnectDesktop(2);
-
-
-            if(m_obMain)
-            {
-
-                QObject *a_Ob = m_obMain->findChild<QObject*>("obMessageStatus");
-                if(a_Ob)
-                {
-                    QMetaObject::invokeMethod(a_Ob, "fStatus"
-                                              , Q_ARG(QVariant, 102)
-                                              , Q_ARG(QVariant, "User '" + StaticData::m_sDeskLogin
-                                                                  + "' not support screen capture."
-                                                                  + "\nOnly command line use.")
-                                              );
-                }
-
-            }
-        }
-
-        //qDebug() << "Control::slClientControl 2.3: " << m_sNewStreamUrl << _sData;
+        //qDebug() << "Control::slClientControl 2.2: " << m_sNewStreamUrl << _sData;
 
     }
     break;
     case 3:
     {
-        if(m_obMenu)
-        {
-            QMetaObject::invokeMethod(m_obMenu, "fConnectServer"
-                                      , Q_ARG(QVariant, _sData)
-                                      );
 
-            QObject *a_Ob = m_obMenu->findChild<QObject*>("obMenuLogin");
-            if(a_Ob)
-            {
-                QMetaObject::invokeMethod(a_Ob, "fConnect"
-                                          , Q_ARG(QVariant, _sData)
-                                          );
-            }
-
-            a_Ob = m_obMenu->findChild<QObject*>("obMenuServer");
-            if(a_Ob)
-            {
-                QMetaObject::invokeMethod(a_Ob, "fConnect"
-                                          , Q_ARG(QVariant, _sData)
-                                          );
-            }
-        }
 
     }
     break;
@@ -384,25 +168,11 @@ void Control::slClientControl(QString _sId, int _iVar, QString _sData)
         m_iTimeConnectNotActive = 0;
 
         //qDebug() << "Control::slClientControl 4: " << _sId << _iVar << _sData;
-
-        if(StaticData::m_sDeskId.length())
-            fStatusConnectToDesktop(true);
     }
     break;
     case 5:
     {
-        if(m_obMenu)
-        {
 
-            QObject *a_Ob = m_obMenu->findChild<QObject*>("obMenuDesktop");
-            if(a_Ob)
-            {
-                QMetaObject::invokeMethod(a_Ob, "fAddDesktop"
-                                          , Q_ARG(QVariant, _sData)
-                                          , Q_ARG(QVariant, _sId)
-                                          );
-            }
-        }
     }
     break;
     case 6:
@@ -412,84 +182,29 @@ void Control::slClientControl(QString _sId, int _iVar, QString _sData)
     break;
     case 8:
     {
-        bool a_bOk;
-        fBufferWrite(_sId.toInt(&a_bOk, 16), _sData);
+
     }
     break;
     case 9:
     {
-        fClipboardSend(true);
+
     }
     break;
     case 10:
     {
         //qDebug() << "Control::slClientControl 10: " << _sId  << _sData;
 
-        if(m_obMenu)
-        {
 
-            QObject *a_Ob = m_obMenu->findChild<QObject*>("obMenuFileCopy");
-            if(a_Ob)
-            {
-                QMetaObject::invokeMethod(a_Ob, "fFileWrited"
-                                          , Q_ARG(QVariant, _sId)
-                                          , Q_ARG(QVariant, _sData)
-                                          );
-            }
-        }
     }
     break;
     case 11:
     {
-        if(m_obMenu)
-        {
 
-            QObject *a_Ob = m_obMenu->findChild<QObject*>("obComandLine");
-            if(a_Ob)
-            {
-                QMetaObject::invokeMethod(a_Ob, "fResponse"
-                                          , Q_ARG(QVariant, _sId)
-                                          , Q_ARG(QVariant, _sData)
-                                          );
-            }
-        }
     }
     break;
     case 12:
     {
-        //qDebug() << "Control::slClientControl 12.0: " << _sId << _sId.toInt() << _sData;
-
-        if(_sId.toInt() > 200)
-        {
-            //qDebug() << "Control::slClientControl 12.1: ";
-            m_bErrStream = true;
-
-            if(_sId.toInt() == 200 + 2
-                || _sId.toInt() == 200 + 5
-                || _sId.toInt() == 200 + 7
-                || _sId.toInt() == 200 + 9
-                || _sId.toInt() == 200 + 10
-                )
-            {
-                slDisConnectDesktop(1);
-
-                if(_sId.toInt() == 200 + 9)
-                {
-                    //qDebug() << "Control::slClientControl 12.3.1: ";
-
-                    fClientDisconnect();
-
-                    if(m_obMenu)
-                    {
-                        QMetaObject::invokeMethod(m_obMenu, "fConnectServer"
-                                                  , Q_ARG(QVariant, "0")
-                                                  );
-                    }
-                }
-
-                //qDebug() << "Control::slClientControl 12.3.2: ";
-            }
-        }
+        qDebug() << "Control::slClientControl 12.0: " << _sId << _sId.toInt() << _sData;
 
         if(StaticData::m_sDeskId.length() != 0
             || _sId.toInt() == 200 + 2
@@ -500,44 +215,49 @@ void Control::slClientControl(QString _sId, int _iVar, QString _sData)
             || _sId.toInt() == 200 + 8
             || _sId.toInt() == 200 + 9
             || _sId.toInt() == 200 + 10
-            || _sId.toInt() == 200 + 11
             )
         {
+            //qDebug() << "Control::slClientControl 12.1: " << _sData;
+        }
 
-            if(m_obMain)
+        if(_sId.toInt() > 200)
+        {
+            //qDebug() << "Control::slClientControl 12.2.0: ";
+
+            if(_sId.toInt() == 200 + 2
+                || _sId.toInt() == 200 + 5
+                || _sId.toInt() == 200 + 7
+                || _sId.toInt() == 200 + 9
+                || _sId.toInt() == 200 + 10
+                || _sId.toInt() == 200 + 11
+                )
             {
-
-                QObject *a_Ob = m_obMain->findChild<QObject*>("obMessageStatus");
-                if(a_Ob)
+                if(_sId.toInt() == 200 + 9)
                 {
-                    QMetaObject::invokeMethod(a_Ob, "fStatus"
-                                              , Q_ARG(QVariant, _sId.toInt())
-                                              , Q_ARG(QVariant, _sData)
-                                              );
+                    QApplication::quit();
                 }
+
+                if(_sId.toInt() == 200 + 11)
+                    emit sgControl( "", 24, "", "");
+
+                //qDebug() << "Control::slClientControl 12.2.2: " << _sId;
             }
-
-
-            if(_sId.toInt() == 200 + 11)
-                emit sgControl( "", 24, "", "");
         }
     }
     break;
     case 13:
     {
-        m_iTimeStreamWrite = 0;
+
     }
     break;
     case 14:
     {
         //qDebug() << "Control::slClientControl 14.0: " << _sId << _sId.toInt() << _sData;
-        fVideoQualitySet(_sData);
     }
     break;
     case 15:
     {
         //qDebug() << "Control::slClientControl 15.0: " << _sId << _sId.toInt() << _sData;
-        fVideoQualityCurent(_sData);
     }
     break;
     case 16:
@@ -553,22 +273,6 @@ void Control::slClientControl(QString _sId, int _iVar, QString _sData)
 
             StaticData::m_bDevServer = true;
 
-            if(m_obMenu)
-            {
-                QObject *a_Ob = m_obMenu->findChild<QObject*>("obMenuServer");
-
-                if(a_Ob)
-                {
-                    QObject *a_ObChkServDev = a_Ob->findChild<QObject*>("obChkServDev");
-
-                    if(a_ObChkServDev
-                        && !a_ObChkServDev->property("checked").toBool() )
-                    {
-                        a_ObChkServDev->setProperty("checked", true);
-                    }
-                }
-            }
-
             if(StaticData::m_sMyId.indexOf("_uds") > 0)
             {
                 if(StaticData::m_sMyId.indexOf("-") < 0)
@@ -583,51 +287,21 @@ void Control::slClientControl(QString _sId, int _iVar, QString _sData)
                 }
             }
 
-            slServerUpdateData(slServerIP(), "0", "0", "0", slKeyDevServer(), slServerPassword() );
+            slServerUpdateData(slServerIP()
+                               , "0"
+                               , "0"
+                               , "0"
+                               , slKeyDevServer()
+                               , slServerPassword() );
         }
         else
         {
-            slServerUpdateData(slServerIP(), QString::number(slPortTCP())
-                               , QString::number(slPortRTSP()), QString::number(slPortRTMP()), slKeyDevServer(), slServerPassword() );
-        }
-    }
-    break;
-    case 17:
-    {
-        //qDebug() << "Control::slClientControl 17.0: " << _sId << _sId.toInt() << _sData;
-
-        if(_sId.toInt() > 300)
-        {
-            if( _sId.toInt() == 300 + 8
-                )
-            {
-
-                if(m_obMain)
-                {
-
-                    QObject *a_Ob = m_obMain->findChild<QObject*>("obMessageStatus");
-                    if(a_Ob)
-                    {
-                        QMetaObject::invokeMethod(a_Ob, "fStatus"
-                                                  , Q_ARG(QVariant, _sId.toInt())
-                                                  , Q_ARG(QVariant, _sData)
-                                                  );
-                    }
-                }
-            }
-        }
-    }
-    break;
-    case 18:
-    {
-        //qDebug() << "Control::slClientControl 18.0: " << _sId << _sId.toInt() << _sData;
-
-        m_iNewStream = 0;
-
-        if(!m_bDisconnect && m_bStream && StaticData::m_sDeskId.length() > 0)
-        {
-            m_iTimeStreamRestart = 0;
-            m_bStreamRestart = true;
+            slServerUpdateData(slServerIP()
+                               , QString::number(slPortTCP())
+                               , "0"
+                               , "0"
+                               , slKeyDevServer()
+                               , slServerPassword() );
         }
 
     }
@@ -639,43 +313,6 @@ void Control::slClientControl(QString _sId, int _iVar, QString _sData)
 
 }
 
-void Control::slSendMouseEvent(int _iVar, bool _bBtLorR, bool _bPressRelease, int _iX, int _iY)
-{
-    //qDebug() << "slSendMouseEvent 0: " << _iVar << _bBtLorR << _bPressRelease << _iX << _iY;
-
-    if(!m_bConnectClient || !m_bStream)
-        return;
-
-    emit sgSendMouseEvent( _iVar, _bBtLorR, _bPressRelease, _iX, _iY );
-
-    m_iTimeForBuffer = 0;
-}
-
-void Control::slSendKeyEvent(unsigned int _iVar, int _iKey, QString _sData)
-{
-    //qDebug() << "Control::slSendKeyEvent 0: ";
-
-    if(!m_bConnectClient || !m_bStream)
-        return;
-
-    QByteArray byteArray;
-    QDataStream stream(&byteArray, QIODevice::WriteOnly);
-
-    stream << _iKey;
-
-    unsigned int x = 0;
-
-#ifdef Q_OS_WIN
-    HKL currentLayout = GetKeyboardLayout(0);
-    x = (quintptr)currentLayout & 0x0000FFFF;
-
-//qDebug() << "slSendKeyEvent 3.1: " << byteArray.toHex(':') << _iKey << _sData << x;
-#endif
-
-    emit sgSendKeyEvent(_iVar, _iKey, x, _sData);
-
-    m_iTimeForBuffer = 0;
-}
 
 QString Control::slLogin()
 {
@@ -689,33 +326,10 @@ QString Control::slPassword()
 
 void Control::fConnectClientStatus()
 {
-    bool a_bRecon = true;
-
-    if(m_bStreamRestart && m_iTimeStreamRestart < 10)
-        m_iTimeStreamRestart++;
-
-    if(m_bStreamRestart && m_iTimeStreamRestart > 1)
-    {
-        //qDebug() << "Control::fConnectClientStatus 2: " << "ReConnectToDesktop";
-
-        m_bStreamRestart = false;
-        m_iTimeConnectNotActive = 0;
-        m_iTimeReConnectToDesktop = 0;
-        a_bRecon = false;
-
-
-        m_bConnectClient = false;
-        if(!m_bDisconnect)
-        {
-            slReConnectToDesktop();
-        }
-    }
-
-
     if(m_iTimeConnectNotActive < 10)
         m_iTimeConnectNotActive++;
 
-    if(a_bRecon && m_iTimeConnectNotActive > 7)
+    if(m_iTimeConnectNotActive > 7)
     {
         m_bConnectClient = false;
 
@@ -726,9 +340,6 @@ void Control::fConnectClientStatus()
             m_iTimeReConnectToDesktop = 0;
 
             //qDebug() << "fConnectClientStatus 3: " << "ReConnectToDesktop";
-
-            if(!m_bDisconnect)
-                slReConnectToDesktop();
         }
 
 
@@ -738,16 +349,6 @@ void Control::fConnectClientStatus()
         m_iTimeReConnectToDesktop = 4;
         m_bConnectClient = true;
     }
-
-    if(m_obMenu)
-    {
-        QMetaObject::invokeMethod(m_obMenu, "fConnectClient"
-                                  , Q_ARG(QVariant, m_bConnectClient)
-                                  );
-    }
-
-    if(!m_bConnectClient)
-        fStatusConnectToDesktop(m_bConnectClient);
 
     if(m_iTimeConnectNotActive > 3
         && m_iTimeConnectNotActive%2 == 0)
@@ -767,21 +368,10 @@ void Control::fConnectClientStatus()
 
     if(StaticData::m_iTimeForStream > 3)
     {
-        if(m_obMenu)
-        {
-            QMetaObject::invokeMethod(m_obMenu, "fStream"
-                                      , Q_ARG(QVariant, false)
-                                      );
-        }
+
     }
     else
     {
-        if(m_obMenu)
-        {
-            QMetaObject::invokeMethod(m_obMenu, "fStream"
-                                      , Q_ARG(QVariant, true)
-                                      );
-        }
 
         if(StaticData::m_sDeskId.length() > 0)
         {
@@ -799,226 +389,18 @@ void Control::fConnectClientStatus()
 
     }
 
-
     //qDebug() << "fConnectClientStatus 10: " << m_bConnectClient;
-}
-
-void Control::slSearchDesktop(QString _sUser)
-{
-    //qDebug() << "slSearchDesktop 5: " << _sUser;
-
-    emit sgSendMassang( MyProtocol::fSearchDesktop(StaticData::m_sMyId, _sUser) );
-}
-
-void Control::fStatusConnectToDesktop(bool _bVar)
-{
-    if(m_obMenu)
-    {
-        QMetaObject::invokeMethod(m_obMenu, "fFileCopyVisible"
-                                  , Q_ARG(QVariant, _bVar)
-                                  );
-
-        if(StaticData::m_sDeskId.length() == 0)
-            _bVar = true;
-
-        QObject *a_Ob = m_obMenu->findChild<QObject*>("obMenuDesktop");
-        if(a_Ob)
-        {
-            QMetaObject::invokeMethod(a_Ob, "fConnect"
-                                      , Q_ARG(QVariant, _bVar)
-                                      );
-        }
-    }
-}
-
-void Control::fStreamReadClear()
-{
-    //qDebug() << "fStreamReadClear 0: " << m_bConnectClient;
-
-    fStreamReaderDelete(m_pApp);
-    m_iTimeConnectNotActive = 10;
-    m_sNewStreamUrl = "";
-
 }
 
 void Control::fGenerateLogPass()
 {
     //qDebug() << "fGenerateLogPass 0: ";
-    if(StaticData::m_bTest)
-    {
-        StaticData::m_sLogin = StaticData::m_sDeskLogin = "nico";
-        StaticData::m_sPassword = StaticData::m_sDeskPassword = "1242";
-
-        return;
-    }
-
 
     StaticData::m_sLogin = MyProtocol::fIdGenerator(MyProtocol::m_sPrefix, "", 8, 10);
 
     StaticData::m_sPassword = MyProtocol::fIdGenerator(MyProtocol::m_sPrefix, "", 6, 8);
-}
 
-void Control::slDesktopRealSize(bool _bVar)
-{
-    if(m_obVideo)
-    {
-        QMetaObject::invokeMethod(m_obVideo, "fDescktopRealSize"
-                                  , Q_ARG(QVariant, _bVar)
-                                  );
-    }
-}
-
-void Control::slFullScreen(bool _bVar)
-{
-    if(m_obMain)
-    {
-        QMetaObject::invokeMethod(m_obMain, "fFullScreen"
-                                  , Q_ARG(QVariant, _bVar)
-                                  );
-    }
-}
-
-void Control::fClipboardSend(bool _bLock)
-{
-    //qDebug() << "Control::slClipboardSend 0: ";
-
-    if(StaticData::m_sMyId == "0" || !m_bStream)
-        return;
-
-    //qDebug() << "Control::slClipboardSend 1: ";
-
-    if(_bLock)
-    {
-        //qDebug() << "Control::mitex 9: ";
-        m_mtxClipboard.lock();
-        //qDebug() << "Control::mitex 8: ";
-    }
-
-
-    QClipboard *clipboard = QGuiApplication::clipboard();
-
-
-    //qDebug() << "Control::fClipboardSend 1.0: " << m_sBufferPrev;
-
-    const QMimeData *mimeData = clipboard->mimeData();
-
-    for(auto format : mimeData->formats())
-    {
-        //        qDebug() << "Control::fClipboardSend 2.1.0: " << format;
-        //        qDebug() << "Control::fClipboardSend 2.1.1: " << QString::fromStdString(mimeData->data(format).toStdString());
-
-        if(format == "text/plain"
-            || format == "text/uri-list")
-        {
-            //qDebug() << "Control::fClipboardSend 2.2: " << mimeData->data(format).toHex(':');
-            //qDebug() << "Control::fClipboardSend 2.3: " << QString::fromStdString(mimeData->data(format).toStdString());
-
-            emit sgSendMassang( MyProtocol::fSendClipboard(StaticData::m_sMyId, 0, "") );
-
-            int a_iSend = 0;
-            int a_iPos = 0;
-            int a_iPlas = 250;
-            QString a_sTemp = mimeData->text();
-            int a_iSz = a_sTemp.length();
-
-            //qDebug() << "Control::fClipboardSend 2.4.0: " << a_sTemp;
-            //qDebug() << "Control::fClipboardSend 2.4.1: " << a_iSz;
-
-            for(a_iPos = 0; a_iPos < a_iSz; a_iPos += a_iPlas )
-            {
-                if(a_iPos + a_iPlas <= a_iSz)
-                {
-                    if(a_iPos + a_iPlas < a_iSz)
-                    {
-                        //qDebug() << "Control::fClipboardSend 3.2: " << a_iPos;
-
-                        emit sgSendMassang( MyProtocol::fSendClipboard(StaticData::m_sMyId, 1
-                                                                      , a_sTemp.mid(a_iPos, a_iPlas)) );
-
-                        //qDebug() << "Control::fClipboardSend 3.2.1: " << a_sTemp.mid(a_iPos, a_iPlas);
-
-                        a_iSend += a_iPlas;
-                    }
-                    else
-                    {
-                        //qDebug() << "Control::fClipboardSend 3.3: " << a_iPos;
-
-                        emit sgSendMassang( MyProtocol::fSendClipboard(StaticData::m_sMyId, 2
-                                                                      , a_sTemp.mid(a_iPos, a_iPlas)) );
-
-                        //qDebug() << "Control::fClipboardSend 3.3.1: " << a_sTemp.mid(a_iPos, a_iPlas);
-
-                        a_iSend += a_iPlas;
-                    }
-                }
-            }
-
-            if(a_iSend + a_iPlas > a_iSz)
-            {
-                //qDebug() << "Control::fClipboardSend 3.4: " << a_iSz << a_iPos << a_iSend;
-
-                emit sgSendMassang( MyProtocol::fSendClipboard(StaticData::m_sMyId, 2
-                                                              , a_sTemp.mid(a_iSend, a_iSz - a_iSend)) );
-
-                //qDebug() << "Control::fClipboardSend 3.4.1: " << a_sTemp.mid(a_iSend, a_iSz - a_iSend);
-            }
-
-            //qDebug() << "Control::fClipboardSend 4: " << a_iSz << a_iPos << a_iSend;
-        }
-    }
-
-    if(_bLock)
-    {
-        m_mtxClipboard.unlock();
-        //qDebug() << "Control::mitex 7: ";
-    }
-
-    //qDebug() << "Control::fClipboardSend 10: " << _bLock;
-
-}
-
-void Control::fBufferWrite(int _iVar, QString _sData)
-{
-    //qDebug() << "Control::fBufferWrite 0: " << _iVar << _sData;
-
-
-    if(_iVar == 0 || !m_bStream)
-    {
-        m_sBufferWrite = "";
-    }
-    else
-    {
-        if(_iVar == 1)
-        {
-            m_sBufferWrite += _sData;
-        }
-        else
-        {
-            if(_iVar == 2)
-            {
-                m_sBufferWrite += _sData;
-
-                //qDebug() << "Control::fBufferWrite 4: " << m_sBufferWrite;
-
-                if(StaticData::m_sMyId != "0"
-                    && m_iTimeForBuffer < 5 )
-                {
-                    //qDebug() << "Control::mitex 5: ";
-                    m_mtxClipboard.lock();
-                    //qDebug() << "Control::mitex 5: ";
-                    QClipboard *clipboard = QGuiApplication::clipboard();
-                    clipboard->clear();
-                    clipboard->setText(m_sBufferWrite);
-                    m_mtxClipboard.unlock();
-                    //qDebug() << "Control::mitex 4: ";
-
-                }
-                //               else
-                //                   qDebug() << "Control::fBufferWrite 5: " << m_iTimeForBuffer;
-            }
-        }
-    }
-
+    //qDebug() << "Control::fGenerateLogPass 10: " << StaticData::m_sLogin << StaticData::m_sPassword;
 }
 
 void Control::slFileCopy(int _iVar, QString _sPath)
@@ -1062,15 +444,6 @@ unsigned short Control::slPortTCP()
     return StaticData::m_sPortTCP;
 }
 
-unsigned short Control::slPortRTSP()
-{
-    return StaticData::m_sPortRTSP;
-}
-
-unsigned short Control::slPortRTMP()
-{
-    return StaticData::m_sPortRTMP;
-}
 
 void Control::slServerUpdateData(QString _sIP, QString _sPortTCP, QString _sPortRTSP, QString _sPortRTMP, QString _sKeyDevServer, QString _sServerPas)
 {
@@ -1085,7 +458,9 @@ void Control::slServerUpdateData(QString _sIP, QString _sPortTCP, QString _sPort
     {
         SettingsApp::fSaveServerData(_sIP, _sPortTCP, _sPortRTSP, _sPortRTMP, _sKeyDevServer, _sServerPas);
 
-        slConnectToServer(StaticData::m_sLogin, StaticData::m_sPassword);
+        slConnectToServer(slLogin(), slPassword() );
+
+        //qDebug() << "Control::slServerUpdateData 5: " << slServerIP() << slPortTCP() << slPortRTSP() << slPortRTMP() << SettingsApp::slDevServer() << SettingsApp::slKeyDevServer();
     }
 }
 
@@ -1101,9 +476,7 @@ bool Control::slIsIP(QString _lIn)
 
 void Control::slComandLine(QString _sData, int _iVar)
 {
-    if(    _iVar == 1
-        || _iVar == 2
-        )
+    if(_iVar == 1)
     {
         if(StaticData::m_sDeskId.length() > 0)
             emit sgSendMassang( MyProtocol::fComandLineRequest( StaticData::m_sDeskId
@@ -1113,7 +486,7 @@ void Control::slComandLine(QString _sData, int _iVar)
                                );
     }
 
-    //$ping -n 20 12.3.213.214
+    //$ping -n 20 158.101.219.244
 }
 
 bool Control::slComandLineStatus()
@@ -1138,233 +511,6 @@ QString Control::slDeskPassword()
     return StaticData::m_sDeskPassword;
 }
 
-void Control::slVideoQualityStatus()
-{
-
-    if(m_obMenu)
-    {
-
-        QObject *a_Ob = m_obMain->findChild<QObject*>("obMenuVideoQuality");
-        if(a_Ob)
-        {
-            QMetaObject::invokeMethod(a_Ob, "fSetStatus"
-                                      , Q_ARG(QVariant, StaticData::_iSizeFr)
-                                      , Q_ARG(QVariant, StaticData::_iFPS)
-                                      , Q_ARG(QVariant, StaticData::_iEnvoderV)
-                                      , Q_ARG(QVariant, StaticData::_iEncSpeed)
-                                      , Q_ARG(QVariant, StaticData::_iBetrate)
-                                      , Q_ARG(QVariant, StaticData::_iLatencyZ)
-                                      , Q_ARG(QVariant, StaticData::_iStreamRTSP)
-                                      , Q_ARG(QVariant, StaticData::_iSoundCapture)
-                                      );
-        }
-    }
-}
-
-void Control::slVideoQualityGet(int _iSizeF, int _iFPS, int _iEnvoderV, int _iEncSpeed, int _iBetrate, int _iLatencyZ, bool _bRtsp, int _iSound)
-{
-    if(m_bStream && StaticData::m_sDeskId.length() > 0)
-    {
-        if( StaticData::_iSizeFr == _iSizeF
-            && StaticData::_iFPS == _iFPS
-            && StaticData::_iEnvoderV == _iEnvoderV
-            && StaticData::_iEncSpeed == _iEncSpeed
-            && StaticData::_iBetrate == _iBetrate
-            && StaticData::_iLatencyZ == _iLatencyZ
-            && StaticData::_iStreamRTSP == _bRtsp
-            && StaticData::_iSoundCapture == _iSound
-            )
-            return;
-
-
-        StaticData::_iSizeFr = _iSizeF;
-        StaticData::_iFPS = _iFPS;
-        StaticData::_iEnvoderV = _iEnvoderV;
-        StaticData::_iEncSpeed = _iEncSpeed;
-        StaticData::_iBetrate = _iBetrate;
-        StaticData::_iLatencyZ = _iLatencyZ;
-        StaticData::_iStreamRTSP = _bRtsp;
-        StaticData::_iSoundCapture = _iSound;
-
-        emit sgSendMassang( MyProtocol::fVideoQualitySet( StaticData::m_sDeskId, StaticData::m_sMyId
-                                                        ,_iSizeF,  _iFPS,  _iEnvoderV,  _iEncSpeed,  _iBetrate, _iLatencyZ
-                                                        , _bRtsp, _iSound)
-                           );
-    }
-}
-
-void Control::fVideoQualitySet(QString _sData)
-{
-    //qDebug() << "Control::fVideoQualitySet 0: " << _sData << _sData.length();
-
-
-    if(_sData.length() != 8)
-        return;
-
-    QByteArray a_baTemp(_sData.toUtf8());
-
-    //qDebug() << "Control::fVideoQualitySet 1: " << a_baTemp.toHex(':');
-
-    if( StaticData::_iCurSizeFr == static_cast<quint8>( a_baTemp.at(0) )
-        && StaticData::_iCurFPS == static_cast<quint8>( a_baTemp.at(1) )
-        && StaticData::_iCurEnvoderV == static_cast<quint8>( a_baTemp.at(2) )
-        && StaticData::_iCurEncSpeed == static_cast<quint8>( a_baTemp.at(3) )
-        && StaticData::_iCurBetrate == static_cast<quint8>( a_baTemp.at(4) )
-        && StaticData::_iCurLatencyZ == static_cast<quint8>( a_baTemp.at(5) )
-        && StaticData::_iCurStreamRTSP == static_cast<quint8>( a_baTemp.at(6) )
-        && StaticData::_iCurSoundCapture == static_cast<quint8>( a_baTemp.at(7) )
-        )
-        return;
-
-    StaticData::m_sRtspDescriptor = "";
-
-    StaticData::_iCurSizeFr = static_cast<quint8>( a_baTemp.at(0) );
-    StaticData::_iCurFPS = static_cast<quint8>( a_baTemp.at(1) );
-
-    if( !StaticData::fAvailableNvh264enc() )
-        StaticData::_iCurEnvoderV = 0;
-    else
-        StaticData::_iCurEnvoderV = static_cast<quint8>( a_baTemp.at(2) );
-
-    StaticData::_iCurEncSpeed = static_cast<quint8>( a_baTemp.at(3) );
-    StaticData::_iCurBetrate = static_cast<quint8>( a_baTemp.at(4) );
-    StaticData::_iCurLatencyZ = static_cast<quint8>( a_baTemp.at(5) );
-    StaticData::_iCurStreamRTSP = static_cast<quint8>( a_baTemp.at(6) );
-    StaticData::_iCurSoundCapture = static_cast<quint8>( a_baTemp.at(7) );
-
-    if( !StaticData::fAvailableNvh264enc() )
-        StaticData::_iCurEnvoderV = 0;
-
-
-
-    SettingsApp::fSaveEvcoderType(StaticData::_iCurEnvoderV);
-    SettingsApp::fSaveStreamRTSP((bool)StaticData::_iCurStreamRTSP);
-
-    //qDebug() << "Control::fVideoQualitySet 3: " << StaticData::_iCurEnvoderV;
-
-}
-
-void Control::fVideoQualityCurent(QString _sData)
-{
-    //qDebug() << "Control::fVideoQualityCurent 0: " << _sData << _sData.length();
-
-
-    if(_sData.length() != 8)
-        return;
-
-    QByteArray a_baTemp(_sData.toUtf8());
-
-    //qDebug() << "Control::fVideoQualityCurent 1: " << a_baTemp.toHex(':');
-
-    if( StaticData::_iSizeFr == static_cast<quint8>( a_baTemp.at(0) )
-        && StaticData::_iFPS == static_cast<quint8>( a_baTemp.at(1) )
-        && StaticData::_iEnvoderV == static_cast<quint8>( a_baTemp.at(2) )
-        && StaticData::_iEncSpeed == static_cast<quint8>( a_baTemp.at(3) )
-        && StaticData::_iBetrate == static_cast<quint8>( a_baTemp.at(4) )
-        && StaticData::_iLatencyZ == static_cast<quint8>( a_baTemp.at(5) )
-        && StaticData::_iStreamRTSP == static_cast<quint8>( a_baTemp.at(6) )
-        && StaticData::_iSoundCapture == static_cast<quint8>( a_baTemp.at(7) )
-        )
-        return;
-
-
-    StaticData::_iSizeFr = static_cast<quint8>( a_baTemp.at(0) );
-    StaticData::_iFPS = static_cast<quint8>( a_baTemp.at(1) );
-    StaticData::_iEnvoderV = static_cast<quint8>( a_baTemp.at(2) );
-    StaticData::_iEncSpeed = static_cast<quint8>( a_baTemp.at(3) );
-    StaticData::_iBetrate = static_cast<quint8>( a_baTemp.at(4) );
-    StaticData::_iLatencyZ = static_cast<quint8>( a_baTemp.at(5) );
-    StaticData::_iStreamRTSP = static_cast<quint8>( a_baTemp.at(6) );
-    StaticData::_iSoundCapture = static_cast<quint8>( a_baTemp.at(7) );
-
-    SettingsApp::fSaveEvcoderType(StaticData::_iEnvoderV);
-    SettingsApp::fSaveStreamRTSP((bool)StaticData::_iStreamRTSP);
-
-    // qDebug() << "Control::fVideoQualityCurent 2: " << StaticData::_iSizeFr << StaticData::_iSizeFr
-    //                 << StaticData::_iEnvoderV << StaticData::_iEncSpeed
-    //                 << StaticData::_iBetrate << StaticData::_iLatencyZ
-    //                 << StaticData::_iStreamRTSP
-    //                 << StaticData::_iSoundCapture;
-
-
-    slVideoQualityStatus();
-
-    m_iNewStream = 0;
-}
-
-void Control::fNewStream()
-{
-    if(m_iNewStream < 2)
-    {
-        m_iNewStream++;
-    }
-
-    if(m_iNewStream == 2)
-    {
-        m_iNewStream++;
-
-        //qDebug() << "Control::fNewStream 12.0: ";
-        if(m_bStream && !m_bErrStream)
-        {
-            //qDebug() << "Control::fNewStream 12.1: ";
-
-            if(slPlayerVar() == 0)
-            {
-                if(m_obVideo)
-                {
-                    QMetaObject::invokeMethod(m_obVideo, "fVideoStartStop"
-                                              , Q_ARG(QVariant, fStreamReadGST())
-                                              , Q_ARG(QVariant, 1) );
-                }
-            }
-            else
-            {
-                fInitStreamReader(m_pApp);
-
-                if(m_obVideo)
-                {
-                    QMetaObject::invokeMethod(m_obVideo, "fVideoStartStop"
-                                              , Q_ARG(QVariant, "")
-                                              , Q_ARG(QVariant, 1) );
-                }
-            }
-        }
-
-        //qDebug() << "Control::fNewStream 12.2: ";
-    }
-}
-
-void Control::slReConnectToDesktop()
-{
-    slConnectToDesktop(m_bStream, StaticData::m_sDeskLogin, StaticData::m_sDeskPassword, StaticData::m_sDeskId);
-}
-
-void Control::fKeyEventClear()
-{
-#ifdef Q_OS_WIN
-    keybd_event(VK_CONTROL ,
-                0,
-                KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP,
-                0);
-
-    keybd_event(164,
-                0,
-                KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP,
-                0);
-
-    keybd_event(165,
-                0,
-                KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP,
-                0);
-#endif
-
-
-}
-
-bool Control::slStreamRTSP()
-{
-    return StaticData::_iStreamRTSP;
-}
 
 QString Control::slAppName()
 {
@@ -1396,49 +542,172 @@ void Control::fTestSomeDataForUser()
     emit sgSendMassang( MyProtocol::fSomeDataForUser(StaticData::m_sDeskId, StaticData::m_sMyId, a_baRequest) );
 }
 
-int Control::slPlayerVar()
+void Control::fPropertySet(QStringList _sDataIn)
 {
-    return StaticData::_iPlayerVar;
-}
+    //qDebug() << "Control::fPropertySet 0:" << _sDataIn;
 
-void Control::fInitStreamReader(QQmlEngine *_engineMain)
-{
+    StaticData::m_bDevServer = false;
+    StaticData::m_sKeyDevServer = "xxxxxxxx";
 
+    _sDataIn.removeFirst();
 
-}
+    _sDataIn = fCorrectDataIn(_sDataIn);
 
-void Control::slUpdateFrame(int _iFrame, int _iWf, int _iHf)
-{
-    //qDebug() << "Control::slUpdateFrame -> " << _iFrame;
+    //qDebug() << "Control::fPropertySet 1:" << _sDataIn;
 
-    StaticData::m_iTimeForStream = 0;
+    QString a_sLog;
+    QString a_sPas;
 
-    if(_iHf > 0 && m_obVideo)
+    quint16 a_iSz = _sDataIn.length();
+
+    if(a_iSz > 1)
     {
-        QMetaObject::invokeMethod(m_obVideo, "updateFrame"
-                                  , Q_ARG(QVariant, _iFrame)
-                                  , Q_ARG(QVariant, _iWf)
-                                  , Q_ARG(QVariant, _iHf));
+        if(a_iSz%2 != 0)
+        {
+            //qDebug() << "Control::fPropertySet 2.0:" << "parmeters are incorrect. Sz: " << a_iSz;
+
+            _sDataIn.removeLast();
+            a_iSz--;
+
+            //qDebug() << "Control::fPropertySet 2.1:" << _sDataIn;
+        }
+
+        for(quint16 i = 0; i < a_iSz; i+=2)
+        {
+            if(_sDataIn.at(i) == "-spas")
+            {
+                if(i + 1 < a_iSz)
+                {
+                    if(_sDataIn.at(i+1).length() > 0)
+                        StaticData::m_sServerPassword = _sDataIn.at(i+1);
+                }
+            }
+            else
+            if(_sDataIn.at(i) == "-sip")
+            {
+                if(i + 1 < a_iSz)
+                {
+                    if(StaticData::fIsIP( _sDataIn.at(i+1) ))
+                    {
+                        StaticData::m_sServerIP = _sDataIn.at(i+1);
+                    }
+                }
+            }
+            else
+                if(_sDataIn.at(i) == "-ptcp")
+                {
+                    if(i + 1 < a_iSz)
+                    {
+                        bool b;
+                        quint16 a_iPort = _sDataIn.at(i+1).toUShort(&b);
+
+                        if(b && a_iPort > 1024)
+                        {
+                            StaticData::m_sPortTCP = a_iPort;
+                        }
+                    }
+                }
+                else
+                    if(_sDataIn.at(i) == "-log")
+                    {
+                        if(i + 1 < a_iSz)
+                        {
+                            if( _sDataIn.at(i+1).length() > 3)
+                            {
+                                a_sLog = _sDataIn.at(i+1);
+                            }
+                        }
+                    }
+                    else
+                        if(_sDataIn.at(i) == "-pas")
+                        {
+                            if(i + 1 < a_iSz)
+                            {
+                                if( _sDataIn.at(i+1).length() > 3)
+                                {
+                                    a_sPas = _sDataIn.at(i+1);
+                                }
+                            }
+                        }
+                        else
+                            if(_sDataIn.at(i) == "-ds")
+                            {
+                                if(i + 1 < a_iSz)
+                                {
+                                    bool b;
+                                    quint8 a_iB = _sDataIn.at(i+1).toUShort(&b);
+
+                                    if(b && a_iB > 0)
+                                        StaticData::m_bDevServer = true;
+
+                                }
+                            }
+                            else
+                                if(_sDataIn.at(i) == "-kds")
+                                {
+                                    if(i + 1 < a_iSz)
+                                    {
+                                        if( _sDataIn.at(i+1).length() > 7)
+                                        {
+                                            StaticData::m_sKeyDevServer = _sDataIn.at(i+1);
+                                        }
+                                    }
+                                }
+        }
+
+        if(a_sLog.length() > 0 && a_sPas.length() > 0)
+        {
+            StaticData::m_sLogin = a_sLog;
+            StaticData::m_sPassword = a_sPas;
+        }
     }
 
+    if(!StaticData::m_bDevServer)
+    {
+        SettingsApp::fUpdateServerData();
+
+        //qDebug() << "Control::fPropertySet 5:" << StaticData::m_bDevServer;
+    }
+
+   qDebug() << "Control::fPropertySet 10: "
+            << StaticData::m_sServerPassword
+            << StaticData::m_sServerIP
+            << StaticData::m_sPortTCP
+            << StaticData::m_sLogin
+            << StaticData::m_sPassword
+            << StaticData::m_bDevServer;
+}
+
+QStringList Control::fCorrectDataIn(QStringList _sDataIn)
+{
+    QString a_sTemp;
+    for(QString s : _sDataIn) {
+
+        if(a_sTemp.length() > 0)
+            a_sTemp += " ";
+
+        while(s.indexOf(" ") >= 0)
+        {
+            s = s.replace(" ", "");
+        }
+
+        a_sTemp += s;
+    }
+
+    while(a_sTemp.indexOf("  ") >= 0)
+    {
+        a_sTemp = a_sTemp.replace("  ", " ");
+    }
+
+    return a_sTemp.split(" ");
 }
 
 void Control::fClientDisconnect()
 {
     //qDebug() << "Control::fClientDisconnect 0: ";
     emit sgClientStop();
-    //qDebug() << "Control::fClientDisconnect 1: ";
-    fStreamReaderDelete(m_pApp);
-    //qDebug() << "Control::fClientDisconnect 2: ";
 
     //qDebug() << "Control::fClientDisconnect 10: ";
-}
-
-void Control::slSendStatIP(QString  _sVar)
-{
-    qDebug() << "Control::slSendStatIP 0: " << _sVar;
-
-    emit sgSendMassang( MyProtocol::fSendStatIP(_sVar) );
 }
 
 void Control::slSleep(unsigned long _lmSec)
@@ -1454,14 +723,4 @@ void Control::slThClientFin()
     //qDebug() << "Control::slThClientFin 5.1: " << m_iThClientSoc;
     m_mtxThClientSoc.unlock();
     //qDebug() << " Control::slThClientFin 200: " << "Client thread end. ----------------------";
-}
-
-void Control::slLowActivityDiscTime(QString _sData)
-{
-    if(StaticData::fIsNumber( _sData) && _sData.toInt() >= 0)
-    {
-        //qDebug() << " Control::slLowActivityDiscTime 5: " << _sData;
-
-        emit sgSendMassang( MyProtocol::fSendLowActivityTime( _sData ) );
-    }
 }

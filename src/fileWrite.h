@@ -7,7 +7,7 @@
 #include <QFile>
 
 
-#include "MyProtocol.h"
+#include <MyProtocol.h>
 #include "StaticData.h"
 
 class FileWrite: public QThread

@@ -7,7 +7,7 @@
 #include <QFile>
 
 
-#include "MyProtocol.h"
+#include <MyProtocol.h>
 
 class FileRead: public QThread
 {

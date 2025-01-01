@@ -18,8 +18,6 @@ public:
 public slots:
     void fReadSettings();
     void fSaveServerData(QString _sIP, QString _sPortTCP, QString _sPortRTSP, QString _sPortRTMP, QString _sKeyDevServer, QString _sServerPas);
-    void fSaveStreamRTSP(bool _bVar);
-    void fSaveEvcoderType(int _iVar);
     void fUpdateServerData();
 
     bool slDevServer();

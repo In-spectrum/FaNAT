@@ -138,14 +138,12 @@ void NewClient::run()
     if(!m_baDataWrite.isEmpty())
         m_baDataWrite.clear();
 
-    qDebug() << "NewClient::run 200:" << "ClientID:" << m_iTimeMs << "ThreadID:" << QThread::currentThreadId() << "Disconnected. Thread end. ----------------------";
+    //qDebug() << "NewClient::run 200:" << "ClientID:" << m_iTimeMs << "ThreadID:" << QThread::currentThreadId() << "Disconnected. Thread end. ----------------------";
 }
 
 void NewClient::fConnect()
 {
-    emit sgControl("", 0, "");
-    emit sgControl("", 3, "0");
-    StaticData::m_sRtspDescriptor = "";
+    emit sgControl("", 0, "0");
 
     if(socket)
     {
@@ -162,7 +160,6 @@ void NewClient::fConnect()
         socket = nullptr;
 
         qDebug() << "NewClient::fConnect 1:" << "new connecting...";
-
 
         if(m_bLowActivity)
         {
@@ -359,7 +356,7 @@ void NewClient::disconnected()
 }
 
 void NewClient::slStop()
-{   
+{
     if(m_bRun)
     {
         //qDebug() << "NewClient::slStop 1:" << "ClientID:" << m_iTimeMs << "ThreadID:" << QThread::currentThreadId();
@@ -535,11 +532,6 @@ void NewClient::slControl(QString _sId, int _iVar, QString _sData, QByteArray _b
         emit sgControl(_sId, 16, "");
     }
     break;
-    case 23:
-    {
-        emit sgControl("", 18, "");
-    }
-    break;
     case 24:
     {
         m_bLowActivity = true;
@@ -559,36 +551,10 @@ void NewClient::slSendMouseEvent(int _iVar, bool _bBtLorR, bool _bPressRelease, 
 
     if(m_pParserSocket->m_baDeskTopID.length() > 0
         && StaticData::m_iTimeForStream < 2)
-           slAddDataWrite( MyProtocol::fSendMouseEvents( StaticData::m_sMyId.toUtf8()
-                                                       , m_pParserSocket->m_baDeskTopID
-                                                       , _iVar, _bBtLorR, _bPressRelease, _iX, _iY) );
+        slAddDataWrite( MyProtocol::fSendMouseEvents( StaticData::m_sMyId.toUtf8()
+                                                    , m_pParserSocket->m_baDeskTopID
+                                                    , _iVar, _bBtLorR, _bPressRelease, _iX, _iY) );
 
-}
-
-void NewClient::slSendKeyEvent(unsigned int _iVar, unsigned int _iKey, unsigned int _iKeyboardLayout, QString _sData)
-{
-    //qDebug() << "NewClient::slSendKeyEvent 0: " << _iVar << _iKey << _iKeyboardLayout;
-
-    if(m_pParserSocket->m_baDeskTopID.length() > 0
-        && StaticData::m_iTimeForStream < 2)
-    {
-        //qDebug() << "NewClient::slSendKeyEvent 1: ";
-
-        #ifdef Q_OS_WIN || Q_OS_LINUX
-            if(KeyControler::fCtrlV(_iVar, _iKey))
-            {
-                //qDebug() << "NewClient::slSendKeyEvent 2: ";
-                emit sgControl("", 9, "");
-            }
-        #endif
-
-
-        slAddDataWrite( MyProtocol::fSendKeyEvents( StaticData::m_sMyId.toUtf8()
-                                                  , m_pParserSocket->m_baDeskTopID
-                                                  , _iVar, _iKey, _iKeyboardLayout, _sData) );
-
-
-    }
 }
 
 void NewClient::slTimer()
@@ -999,11 +965,10 @@ void NewClient::fComandLine(QByteArray _baIn)
 
 void NewClient::slThreadTask()
 {
-    //qDebug() << "NewClient::slThreadTask 0:" << "ClientID:" << m_iTimeMs << "ThreadID:" << QThread::currentThreadId();
+    //qDebug() << "NewClient::slThreadTask 0:" << "ThreadID:" << QThread::currentThreadId();
 
     if(m_iTaskVar == 0)
     {
         exit(0);
     }
 }
-

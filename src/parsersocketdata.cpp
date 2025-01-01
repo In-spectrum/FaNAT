@@ -149,9 +149,6 @@ QByteArray ParserSocketData::fNextStep(QByteArray _baIn)
             case (char)0x14:
                 a_iPos += fSomeData(a_baData);
                 break;
-            case (char)0x15:
-                a_iPos += fMustStreamRestart(a_baData);
-                break;
             case (char)0x17:
                 a_iPos += fKeyClienValid(a_baData);
                 break;
@@ -209,25 +206,16 @@ unsigned int ParserSocketData::fGetStreamData(QByteArray _baIn)
 
     //generator URL-descriptor
 
-    if(StaticData::m_sRtspDescriptor.length() < 16)
-    {
-        StaticData::m_sRtspDescriptor = MyProtocol::fIdGenerator(MyProtocol::m_sPrefix, StaticData::m_sMyId, 16, 32);
-    }
+    QString a_Url = StaticData::m_sWithoutStream;
 
-    //StaticData::m_sRtspDescriptor = "111";
+    //qDebug() << "ParserSocketData::fGetStreamData 6: " << a_Url;
 
-    StaticData::m_sRtspDescriptor = StaticData::m_sRtspDescriptor.replace("-", "");
-    StaticData::m_sRtspDescriptor = StaticData::m_sRtspDescriptor.replace("_", "");
 
-    //qDebug() << "ParserSocketData::fGetStreamData 6: " << StaticData::m_sRtspDescriptor;
-
-    StaticData::m_sRtspDescriptor = StaticData::m_sWithoutStream;
-
-    emit sgControl(StaticData::m_sMyId, 1, StaticData::m_sRtspDescriptor, "");
+    emit sgControl(StaticData::m_sMyId, 1, a_Url, "");
 
     emit sgAddDataWrite( MyProtocol::fStreamDataForClient( StaticData::m_sMyId
                                                            , QString::fromStdString(a_baClient.toStdString())
-                                                           , StaticData::m_sRtspDescriptor) );
+                                                           , a_Url) );
 
     ////------------
     a_iPlasPos++;
@@ -1360,28 +1348,10 @@ unsigned int ParserSocketData::fVideoQualitySet(QByteArray _baIn)
 
     if(a_baData.length() == 8)
     {
-        QByteArray a_baTemp(a_baData);
-
-        if( StaticData::_iCurSizeFr != static_cast<quint8>( a_baTemp.at(0) )
-            || StaticData::_iCurFPS != static_cast<quint8>( a_baTemp.at(1) )
-            || StaticData::_iCurEnvoderV != static_cast<quint8>( a_baTemp.at(2) )
-            || StaticData::_iCurEncSpeed != static_cast<quint8>( a_baTemp.at(3) )
-            || StaticData::_iCurBetrate != static_cast<quint8>( a_baTemp.at(4) )
-            || StaticData::_iCurLatencyZ != static_cast<quint8>( a_baTemp.at(5) )
-            || StaticData::_iCurStreamRTSP != static_cast<quint8>( a_baTemp.at(6) )
-            || StaticData::_iCurSoundCapture != static_cast<quint8>( a_baTemp.at(7) )
-            )
-        {
-            //StaticData::m_sRtspDescriptor="";
-
-
-            emit sgControl(""
-                           , 20
-                           , ""
-                           , a_baData);
-        }
-
-
+        emit sgControl(""
+                       , 20
+                       , ""
+                       , a_baData);
     }
 
     a_iPlasPos++;
@@ -1565,52 +1535,6 @@ unsigned int ParserSocketData::fSomeData(QByteArray _baIn)
 
     a_iPlasPos++;
     return 3 + a_iData_1 + a_iData_2 + a_iData_3 + a_iPlasPos;
-}
-
-unsigned int ParserSocketData::fMustStreamRestart(QByteArray _baIn)
-{
-    //qDebug() << "ParserSocketData::fMustStreamRestart 0: " << _baIn.length() << _baIn.toHex(':');
-
-    if(_baIn.length() < 4)
-        return 0;
-
-    int a_iPlasPos = 0;
-
-    int a_iData_1 = static_cast<quint8>( _baIn.at(2) ); //SZ-1
-
-    //qDebug() << "ParserSocketData::fMustStreamRestart 2.0: " << a_iData_1;
-
-    a_iPlasPos++;
-    if(_baIn.length() < 2 + a_iData_1 + a_iPlasPos + 1)
-        return 0;
-
-
-    //qDebug() << "ParserSocketData::fMustStreamRestart 2.3: "
-    //         <<  MyProtocol::fCRC_isOk(_baIn.mid(1, 1 + a_iData_1 + a_iPlasPos), _baIn.at( 1 + a_iData_1 + a_iPlasPos + 1 ));
-
-
-    if( !MyProtocol::fCRC_isOk(_baIn.mid(1,  1 + a_iData_1 + a_iPlasPos), _baIn.at( 1 + a_iData_1 + a_iPlasPos + 1 )) )
-        return 0;
-
-    //qDebug() << "ParserSocketData::fMustStreamRestart 3: ";
-
-    QByteArray a_baClientId;
-    a_iPlasPos = 0;
-
-    for(int i = 3; i < 3 + a_iData_1 + a_iPlasPos; i++)
-    {
-        a_baClientId.append(_baIn[i]);
-    }
-
-    //qDebug() << "ParserSocketData::fMustStreamRestart 10: " << QString::fromStdString(a_baClientId.toStdString());
-
-    emit sgControl(""
-                   , 23
-                   , ""
-                   , "");
-
-    a_iPlasPos++;
-    return 3 + a_iData_1 + a_iPlasPos;
 }
 
 unsigned int ParserSocketData::fKeyClienValid(QByteArray _baIn)

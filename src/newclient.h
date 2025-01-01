@@ -46,7 +46,6 @@ public slots:
     void slParser();
     void slControl(QString _sId, int _iVar, QString _sData, QByteArray _baIn);
     void slSendMouseEvent(int _iVar, bool _bBtLorR, bool _bPressRelease, int _iX, int _iY);
-    void slSendKeyEvent(unsigned int _iVar, unsigned int _iKey, unsigned int _iKeyboardLayout, QString _sData);
     void slTimer();
     void slThreadTask();
 

@@ -6,9 +6,8 @@
 #include <QTimer>
 #include <QTcpSocket>
 #include <QMutex>
-#include "MyProtocol.h"
+#include <MyProtocol.h>
 #include "StaticData.h"
-#include "KeyControler.h"
 
 
 class ParserSocketData: public QObject
@@ -39,7 +38,6 @@ private:
     unsigned int fVideoQualitySet(QByteArray _baIn);
     unsigned int fVideoQualityCurent(QByteArray _baIn);
     unsigned int fSomeData(QByteArray _baIn);
-    unsigned int fMustStreamRestart(QByteArray _baIn);
     unsigned int fKeyClienValid(QByteArray _baIn);
 
 

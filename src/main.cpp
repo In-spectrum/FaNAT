@@ -1,64 +1,66 @@
-#include <QGuiApplication>
-#include <QQmlApplicationEngine>
-#include <QQmlContext>
-#include <QIcon>
-//#include <QQuickWindow>
-
+#include <QApplication>
+#include <csignal>
 #include "control.h"
 
+#include <iostream>
 
-#ifdef Q_OS_ANDROID
-
-
-#else
-    #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-        #include "myfilter.h"
-    #endif
-#endif
-
+static void sigHandler(int s)
+{
+    //qDebug() << "sigHandler 0: " << s;
+    std::signal(s, SIG_DFL);
+    qApp->quit();
+}
 
 int main(int argc, char *argv[])
 {
+    QApplication a(argc, argv);
 
-#ifdef Q_OS_ANDROID
+    qDebug() << StaticData::m_sNameApp << StaticData::m_sVersion;
+    std::cout << StaticData::m_sSupport.toStdString() << std::endl;
 
-#else
-    #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-        QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-    #endif
+    std::signal(SIGINT,  sigHandler);
+    std::signal(SIGTERM, sigHandler);
 
-    #ifdef Q_OS_WIN
-        //qputenv("QT_QUICK_BACKEND","software");
-        //QQuickWindow::setSceneGraphBackend("software");
-    #endif
-#endif
+    QStringList a_Ar;
+    a_Ar.append( a.arguments() );
 
-    QGuiApplication app(argc, argv);
-    QGuiApplication::setWindowIcon(QIcon(":/image/icon.png"));
+    // a_Ar.append("-ds");
+    // a_Ar.append("1");
 
-#ifdef Q_OS_ANDROID
-    const QUrl url(QStringLiteral("qrc:/qml6/main.qml"));
-#else
-#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-        qmlRegisterType<MyFilter>("my.filter", 1, 0, "MyFilter");
-        const QUrl url(QStringLiteral("qrc:/qml5/main.qml"));
-#else
-    const QUrl url(QStringLiteral("qrc:/qml6/main.qml"));
-#endif
-#endif
+    // a_Ar.append("-kds");
+    // a_Ar.append("xxxxxxxx45");
 
-    QQmlApplicationEngine engine;
-    QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
-                     &app, [url](QObject *obj, const QUrl &objUrl) {
-        if (!obj && url == objUrl)
-            QCoreApplication::exit(-1);
-    }, Qt::QueuedConnection);
+    // a_Ar.append("-spas");
+    // a_Ar.append("22227");
 
-    QQmlContext* context = engine.rootContext();
-    Control *a_pCon = new Control(&engine);
-    context->setContextProperty("contextMain", a_pCon );
+    // a_Ar.append("-sip");
+    // a_Ar.append("156.34.212.11");
 
-    engine.load(url);
+    // a_Ar.append("-ptcp");
+    // a_Ar.append("1237");
 
-    return app.exec();
+    // a_Ar.append("-prtsp");
+    // a_Ar.append("8504");
+
+    // a_Ar.append("-prtmp");
+    // a_Ar.append("1935");
+
+    // a_Ar.append("-log");
+    // a_Ar.append("nico");
+
+    // a_Ar.append("-pas");
+    // a_Ar.append("1242");
+
+    Control m_pC( a_Ar );
+
+    //    char a_cTemp;
+
+    //    while (true)
+    //    {
+    //        std::cin >> a_cTemp;
+    //        std::cout << a_cTemp << endl;
+    //    }
+
+
+    return a.exec();
 }
